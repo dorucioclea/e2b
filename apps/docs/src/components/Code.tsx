@@ -12,10 +12,15 @@ import {
 import { Tab } from '@headlessui/react'
 import clsx from 'clsx'
 import { create } from 'zustand'
+import {
+  Play,
+  Loader,
+} from 'lucide-react'
 
 import { Tag } from '@/components/Tag'
 import { CopyButton } from '@/components/CopyButton'
-import { useApiKey } from '@/utils/useUser'
+import { useUser, useApiKey } from '@/utils/useUser'
+import { ProcessMessage } from '@e2b/sdk'
 
 const languageNames: Record<string, string> = {
   js: 'JavaScript',
@@ -106,10 +111,16 @@ function CodeGroupHeader({
   title,
   children,
   selectedIndex,
+  onRunClick,
+  isRunning,
+  isRunnable = true,
 }: {
   title: string
   children: React.ReactNode
   selectedIndex: number
+  onRunClick?: (e: any) => void
+  isRunnable: boolean
+  isRunning?: boolean
 }) {
   let hasTabs = Children.count(children) > 1
 
@@ -118,7 +129,8 @@ function CodeGroupHeader({
   }
 
   return (
-    <div className="flex min-h-[calc(theme(spacing.12)+1px)] flex-wrap items-start gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
+    <div className="flex min-h-[calc(theme(spacing.12)+1px)] flex-wrap items-center justify-between gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
+      <div className="flex items-start space-x-4">
       {title && (
         <h3 className="mr-auto pt-3 text-xs font-semibold text-white">
           {title}
@@ -142,6 +154,32 @@ function CodeGroupHeader({
             </Tab>
           ))}
         </Tab.List>
+      )}
+      </div>
+      {isRunnable && (
+        <>
+          {isRunning ? (
+            <Loader
+              className="h-4 w-4 text-emerald-400 group-hover:text-emerald-300 transition-all animate-spin"
+              strokeWidth={2.5}
+            />)
+          :(
+            <button
+              className="group p-1 flex items-center space-x-2 bg-transparent rounded-md cursor-pointer transition-all"
+              onClick={onRunClick}
+            >
+              <span
+                className="text-xs font-medium relative top-[-0.5px] group-hover:text-zinc-300 text-zinc-400 transition-all"
+              >
+                Run Code
+              </span>
+              <Play
+                className="h-4 w-4 text-emerald-400 group-hover:text-emerald-300 transition-all"
+                strokeWidth={2.5}
+              />
+            </button>
+          )}
+        </>
       )}
     </div>
   )
@@ -249,8 +287,13 @@ const CodeGroupContext = createContext(false)
 export function CodeGroup({
   children,
   title,
+  isRunnable = true,
   ...props
-}: React.ComponentPropsWithoutRef<typeof CodeGroupPanels> & { title: string }) {
+}: React.ComponentPropsWithoutRef<typeof CodeGroupPanels> & { title: string, isRunnable: boolean }) {
+  const { jsPlayground, pythonPlayground } = useUser()
+  const [output, setOutput] = useState('')
+  const [isRunning, setIsRunning] = useState(false)
+  const apiKey = useApiKey()
   let languages =
     Children.map(children, (child) =>
       getPanelTitle(isValidElement(child) ? child.props : {})
@@ -260,8 +303,50 @@ export function CodeGroup({
 
   let containerClassName =
     'not-prose my-6 overflow-hidden rounded-2xl bg-zinc-900 shadow-md dark:ring-1 dark:ring-white/10'
+
+  function appendOutput(out: ProcessMessage) {
+    console.log(out)
+    setOutput(current => current += `\n${out.line}`)
+  }
+
+  async function handleRunClick() {
+    // TODO: Prompt user to sign up
+    // if (!playground) {
+    //   console.log('No user!')
+    //   return
+    // }
+
+    setOutput('')
+    setIsRunning(true)
+
+    const language = languages[tabGroupProps.selectedIndex]
+    const code = children[tabGroupProps.selectedIndex].props.code
+
+    let runtime = `E2B_API_KEY=${apiKey}`
+
+    if (language === 'JavaScript') {
+      runtime += ' node'
+      const filename = '/code/index.js'
+      console.log('Running code', language, code, filename, runtime)
+      await jsPlayground.filesystem.write(filename, code)
+      jsPlayground.process.start({ cmd: `${runtime} ${filename}`, onStdout: appendOutput, onStderr: appendOutput, onExit: () => setIsRunning(false) })
+    } else if (language === 'Python') {
+      runtime += ' python3'
+      const filename = '/main.py'
+      await pythonPlayground.filesystem.write(filename, code)
+      pythonPlayground.process.start({ cmd: `${runtime} ${filename}`, onStdout: appendOutput, onStderr: appendOutput, onExit: () => setIsRunning(false) })
+    } else {
+      throw new Error('Unsupported runtime for playground')
+    }
+  }
   let header = (
-    <CodeGroupHeader title={title} selectedIndex={tabGroupProps.selectedIndex}>
+    <CodeGroupHeader
+      isRunnable={isRunnable}
+      isRunning={isRunning}
+      title={title}
+      selectedIndex={tabGroupProps.selectedIndex}
+      onRunClick={handleRunClick}
+    >
       {children}
     </CodeGroupHeader>
   )
@@ -273,6 +358,10 @@ export function CodeGroup({
         <Tab.Group {...tabGroupProps} className={containerClassName}>
           {header}
           {panels}
+          <div className="max-h-[200px] bg-zinc-800 font-mono py-1 px-4 flex flex-col items-start justify-start">
+            <span className="text-zinc-500 text-xs font-mono">Output</span>
+            <pre className="w-full h-full overflow-auto text-xs text-white whitespace-pre">{output}</pre>
+          </div>
         </Tab.Group>
       ) : (
         <div className={containerClassName}>
