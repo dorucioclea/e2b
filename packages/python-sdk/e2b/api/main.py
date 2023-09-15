@@ -2,12 +2,12 @@ import platform
 from importlib import metadata
 
 import e2b.api.client as client
-from e2b.constants import API_DOMAIN
+from e2b.constants import API_HOST
 
 # Defining the host is optional and defaults to https://api.e2b.dev
 # See configuration.py for a list of all supported configuration parameters.
 configuration = client.Configuration(
-    host=f"https://{API_DOMAIN}",
+    host=API_HOST,
 )
 
 

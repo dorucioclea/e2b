@@ -2,7 +2,7 @@ import 'cross-fetch/polyfill'
 import { Fetcher } from 'openapi-typescript-fetch'
 import platform from 'platform'
 
-import { API_DOMAIN } from '../constants'
+import { API_HOST } from '../constants'
 import type { components, paths } from './schema.gen'
 
 interface Headers {
@@ -11,10 +11,7 @@ interface Headers {
 
 export class E2BClient {
   public client = Fetcher.for<paths>()
-  public createSession = this.client
-    .path('/instances')
-    .method('post')
-    .create()
+  public createSession = this.client.path('/instances').method('post').create()
   public refreshSession = this.client
     .path('/instances/{instanceID}/refreshes')
     .method('post')
@@ -22,7 +19,7 @@ export class E2BClient {
 
   constructor(additional_headers?: Headers) {
     this.client.configure({
-      baseUrl: `https://${API_DOMAIN}`,
+      baseUrl: API_HOST,
       init: {
         headers: {
           package_version: '__pkgVersion__',

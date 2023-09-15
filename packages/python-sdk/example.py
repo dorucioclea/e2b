@@ -1,7 +1,13 @@
 import asyncio
 import logging
+import os
+
+from dotenv import load_dotenv
 
 from e2b import Session
+
+load_dotenv()
+E2B_API_KEY = os.getenv("E2B_API_KEY")
 
 id = "Python3"
 
@@ -10,7 +16,7 @@ logging.basicConfig(level=logging.ERROR)
 
 async def main():
     print("a")
-    s = Session("Nodejs")
+    s = Session("Nodejs", api_key=E2B_API_KEY)
     await s.open()
     print("b")
     proc = await s.process.start(
